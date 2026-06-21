@@ -18,26 +18,23 @@ jobs:
       with:
         node-version: 18
 
-    - name: Initialize App Package Configuration
+    - name: Build Setup Configuration Files
+      shell: bash
       run: |
-        # สร้างโครงสร้างไฟล์ตรรกะสำหรับการเชื่อมต่อแอปและซ่อนกรอบขาว Windows
-        node -e "
-        const fs = require('fs');
-        const pkg = {
-          name: 'suomsiang-capcut',
-          version: '1.0.0',
-          main: 'main.js',
-          dependencies: { 'electron-packager': '^17.1.2' }
-        };
-        fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-        "
+        # 🚀 สร้างไฟล์ package.json แบบคลีน
+        cat << 'EOF' > package.json
+        {
+          "name": "suomsiang-capcut",
+          "version": "1.0.0",
+          "main": "main.js",
+          "dependencies": {
+            "electron-packager": "^17.1.2"
+          }
+        }
+        EOF
 
-    - name: Create Electron Main Process Script
-      run: |
-        # เขียนสคริปต์สั่งเปิดหน้าต่างตัวเครื่องเล่นแบบ Frameless ซ่อนขอบหน้าต่างขาวทิ้งไป
-        node -e "
-        const fs = require('fs');
-        const script = \`
+        # 🚀 สร้างไฟล์ main.js และเปิดโหมด Frameless ซ่อนขอบหน้าต่างขาวทิ้งไป 100%
+        cat << 'EOF' > main.js
         const { app, BrowserWindow } = require('electron');
         const path = require('path');
 
@@ -45,7 +42,7 @@ jobs:
           const win = new BrowserWindow({
             width: 1040,
             height: 640,
-            frame: false,       // 🚀 สั่งซ่อนกรอบหน้าต่างพลาสติกสีขาวของ Windows ทิ้งไป 100%
+            frame: false,       // ซ่อนขอบขาวพลาสติกของ Windows ทิ้งไป
             resizable: false,   // ล็อกขนาดเครื่องเล่นไม่ให้เบี้ยว
             transparent: true,  // เปิดโหมดโปร่งใสรอบเครื่องเล่น
             webPreferences: {
@@ -62,16 +59,14 @@ jobs:
         app.on('window-all-closed', () => {
           if (process.platform !== 'darwin') app.quit();
         });
-        \`;
-        fs.writeFileSync('main.js', script.trim());
-        "
+        EOF
 
     - name: Install Dependencies
       run: npm install
 
     - name: Compile and Build Package To EXE
       run: |
-        # สั่งแพ็คไฟล์เป็นแอปพลิเคชัน Windows 64-bit และล็อกขนาดเรียบร้อย
+        # สั่งแพ็คไฟล์เป็นแอปพลิเคชัน Windows 64-bit โครงสร้างสมบูรณ์แบบ
         npx electron-packager . SUOMSIANG-CAPCUT --platform=win32 --arch=x64 --overwrite --out=./dist/
         powershell Compress-Archive -Path ./dist/SUOMSIANG-CAPCUT-win32-x64/* -DestinationPath ./suomsiang-player-win64.zip
 
