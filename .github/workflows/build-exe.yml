@@ -13,83 +13,27 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    - name: Setup Node.js Environment
-      uses: actions/setup-node@v4
-      with:
-        node-version: 18
-
-    - name: Build Setup Configuration Files
-      shell: bash
+    - name: Download NW.js Runtime
       run: |
-        # สร้าง package.json ที่ระบุเวอร์ชันและ author ครบถ้วนตามมาตรฐานสากล
-        cat << 'EOF' > package.json
-        {
-          "name": "suomsiang-capcut",
-          "version": "1.0.0",
-          "author": "SUOMSIANG",
-          "description": "Crypto Music Player",
-          "main": "main.js",
-          "scripts": {
-            "dist": "electron-builder --win --x64"
-          },
-          "dependencies": {
-            "electron": "^25.0.0"
-          },
-          "devDependencies": {
-            "electron-builder": "^24.0.0"
-          },
-          "build": {
-            "appId": "com.suomsiang.player",
-            "win": {
-              "target": "portable"
-            },
-            "files": [
-              "index.html",
-              "main.js",
-              "favicon.ico"
-            ]
-          }
-        }
-        EOF
+        # ดาวน์โหลดตัวรันไทม์ Windows 64-bit โดยตรงจากสากล
+        curl -L https://dl.nwjs.io/v0.82.0/nwjs-v0.82.0-win-x64.zip -o nwjs.zip
+        powershell Expand-Archive -Path nwjs.zip -DestinationPath .
+        mv nwjs-v0.82.0-win-x64 nwjs_runtime
 
-        # สร้างไฟล์ main.js เปิดโหมด Frameless ซ่อนขอบหน้าต่างขาว 100%
-        cat << 'EOF' > main.js
-        const { app, BrowserWindow } = require('electron');
-        const path = require('path');
-
-        function createPlayerWindow() {
-          const win = new BrowserWindow({
-            width: 1040,
-            height: 640,
-            frame: false,       // ลบขอบหน้าต่างขาวพลาสติกทิ้งไป
-            resizable: false,   // ล็อกขนาดไม่ให้เบี้ยว
-            transparent: true,  // เปิดความโปร่งใสขอบมน
-            webPreferences: {
-              nodeIntegration: false,
-              contextIsolation: true
-            }
-          });
-
-          win.loadFile('index.html');
-        }
-
-        app.whenReady().then(createPlayerWindow);
-
-        app.on('window-all-closed', () => {
-          if (process.platform !== 'darwin') app.quit();
-        });
-        EOF
-
-    - name: Install Dependencies
-      run: npm install
-
-    - name: Compile and Build Package To EXE
+    - name: Create Executable Package
       run: |
-        # รันเครื่องมือแพ็คสำเร็จรูปสากล
-        npm run dist
-        # ย้ายไฟล์คัดแยกพร้อมบีบอัดเป็น ZIP
+        # บีบอัดโค้ดของโปรแกรมให้เป็นแพ็คเกจตัวแอป
+        powershell Compress-Archive -Path index.html, package.json, favicon.ico -DestinationPath ./app.nw
+        
+        # ผสมผสานตัวแอปเข้ากับไฟล์ระบบของ Windows เพื่อสร้างเป็นไฟล์ .exe ตัวเดียวเดี่ยวๆ
+        cmd /c "copy /b nwjs_runtime\nw.exe + app.nw nwjs_runtime\SUOMSIANG-CAPCUT.exe"
+        
+        # ลบไฟล์ตัวอย่างที่ไม่ได้ใช้งานทิ้งไปเพื่อลดขนาดและไม่ให้รกตา
+        rm nwjs_runtime/nw.exe
+        
+        # จัดเตรียมโฟลเดอร์สำหรับบีบอัดส่งออก
         mkdir dist_zip
-        cp dist/*.exe dist_zip/
+        mv nwjs_runtime/* dist_zip/
         powershell Compress-Archive -Path ./dist_zip/* -DestinationPath ./suomsiang-player-win64.zip
 
     - name: Upload Final EXE Package to GitHub
