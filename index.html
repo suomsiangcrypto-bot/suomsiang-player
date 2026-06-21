@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUOMSIANG CAPCUT - Advanced Desktop Memory Engine</title>
+    
+    <!-- 📌 ลิงก์เชื่อมต่อโลโก้แสดงผลบนแท็บเบราว์เซอร์จากไฟล์ที่คุณมี -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    
+    <!-- ใช้ SortableJS สำหรับลากสลับตำแหน่งเพลง -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <style>
+        :root {
+            --glow-color: #4ef2d2;
+            --panel-bg: rgba(12, 14, 16, 0.88); 
+            --body-bg: linear-gradient(135deg, #2c3136 0%, #1a1d20 100%);
+            --border-color: #3a4147;
+            --neon-red: #ff003c;
+            --custom-bg-image: none; 
+        }
+
+        .skin-1 { --glow-color: #4ef2d2; }
+        .skin-2 { --glow-color: #ff0055; }
+        .skin-3 { --glow-color: #ffaa00; }
+        .skin-4 { --glow-color: #00ff66; }
+        .skin-5 { --glow-color: #00b7ff; }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Arial', sans-serif; user-select: none; }
+        body { background-color: #050607; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+
+        .main-wrapper { position: relative; display: flex; align-items: center; justify-content: center; }
+
+        /* ตัวเครื่องโครงสร้าง 3D รองรับจับลากหน้าต่างเมื่อทำเป็น EXE */
+        .player-frame {
+            width: 1040px; height: 640px; 
+            background: var(--custom-bg-image), var(--body-bg); 
+            background-size: cover; background-position: center;
+            border-radius: 24px; padding: 20px;
+            border: 2px solid var(--border-color); position: relative; 
+            display: grid; grid-template-columns: 1fr 1.1fr 1.1fr; gap: 15px; z-index: 10;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.9), inset 0 2px 3px rgba(255,255,255,0.15);
+            -webkit-app-region: drag;
+        }
+
+        .player-frame::before {
+            content: ''; position: absolute; top: -2px; left: -2px; right: -2px; bottom: -2px;
+            border-radius: 26px; border: 2px solid var(--glow-color); opacity: 0.8; pointer-events: none;
+            box-shadow: 0 0 20px var(--glow-color); transition: all 0.5s ease; z-index: 11;
+        }
+
+        /* ปุ่มซ่อนควบคุมขอบโปรแกรม */
+        .hover-zone-left { position: absolute; top: 0; left: 0; width: 120px; height: 60px; z-index: 100; display: flex; align-items: center; padding-left: 15px; -webkit-app-region: no-drag; }
+        .back-home-trigger { background: rgba(20, 22, 25, 0.95); border: 1px solid var(--glow-color); color: var(--glow-color); padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer; box-shadow: 0 0 10px var(--glow-color); opacity: 0; transition: all 0.3s ease; }
+        .hover-zone-left:hover .back-home-trigger { opacity: 1; }
+        
+        .hover-zone-right { position: absolute; top: 0; right: 0; width: 140px; height: 60px; z-index: 100; display: flex; align-items: center; justify-content: flex-end; padding-right: 15px; gap: 8px; -webkit-app-region: no-drag; }
+        .window-control-btn { width: 30px; height: 32px; border-radius: 6px; border: 1px solid #444; background: rgba(20, 22, 25, 0.95); color: #fff; font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: all 0.3s ease; }
+        .hover-zone-right:hover .window-control-btn { opacity: 1; }
+        .btn-minimize:hover { background: #ffaa00; color: #000; }
+        .btn-close:hover { background: #ef4444; color: #fff; }
+
+        .inset-panel, .master-bottom-dock, .slide-trigger-btn, .side-panel, .visualizer-style-select { -webkit-app-region: no-drag; }
+
+        /* เลเยอร์วิดีโอ MP4 */
+        .frame-video-viewport { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; z-index: -1; display: none; background: #000; border-radius: 22px; }
+        .player-frame.playing-video .frame-video-viewport { display: block; z-index: 1; }
+
+        .engraved-neon-text {
+            font-size: 44px; font-weight: 900; letter-spacing: 6px; text-align: center; color: #111;
+            text-shadow: -1px -1px 1px rgba(0,0,0,0.9), 1px 1px 1px rgba(255,255,255,0.1), 0 0 10px var(--neon-red), 0 0 20px var(--neon-red);
+            animation: textPulse 2s infinite alternate;
+        }
+        @keyframes textPulse { 0% { opacity: 0.8; text-shadow: 0 0 10px var(--neon-red); } 100% { opacity: 1; text-shadow: 0 0 25px var(--neon-red); } }
+
+        .inset-panel {
+            background: var(--panel-bg); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            border-radius: 14px; border: 1px solid rgba(0,0,0,0.6);
+            box-shadow: inset 0 5px 12px rgba(0,0,0,0.8), 0 1px 1px rgba(255,255,255,0.1); padding: 12px; position: relative; z-index: 12;
+        }
+
+        .hide-on-video { transition: opacity 0.4s ease, transform 0.4s ease, pointer-events 0.4s; position: relative; z-index: 12; }
+        .player-frame.playing-video .hide-on-video { opacity: 0 !important; pointer-events: none !important; transform: scale(0.92); }
+
+        /* หน้าจอคลื่นสัญญาณ Canvas */
+        .visualizer-screen { height: 160px; background: #07090a; padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .visualizer-canvas-layer { width: 100%; height: 100%; display: block; }
+        
+        /* ช่องสลับสไตล์ 10 แบบตรงลูกศรชี้ */
+        .visualizer-style-select {
+            width: 100%; background: #0c0f12; border: 1px solid var(--border-color); color: var(--glow-color);
+            padding: 8px; border-radius: 8px; font-size: 11px; font-weight: bold; outline: none; cursor: pointer;
+            text-align: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); margin-top: 5px;
+        }
+
+        /* แผงดึงสไลด์ */
+        .slide-trigger-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 25px; height: 90px; background: #23272a; border: 1px solid var(--border-color); color: var(--glow-color); display: flex; align-items: center; justify-content: center; font-size: 11px; cursor: pointer; z-index: 15; transition: all 0.3s; }
+        #slide-left-btn { left: -15px; border-radius: 6px 0 0 6px; }
+        #slide-right-btn { right: -15px; border-radius: 0 6px 6px 0; }
+
+        .side-panel { position: absolute; top: 40px; width: 260px; height: 540px; background: #17191c; border: 2px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.8); border-radius: 16px; padding: 20px; transition: transform 0.4s ease, opacity 0.4s; z-index: 1; display: flex; flex-direction: column; gap: 15px; }
+        #skin-panel { left: 0; transform: translateX(80px); opacity: 0; pointer-events: none; }
+        #extended-playlist-panel { right: 0; transform: translateX(-80px); opacity: 0; pointer-events: none; }
+        .side-panel.open { opacity: 1 !important; pointer-events: all !important; z-index: 20; }
+        #skin-panel.open { transform: translateX(-245px); }
+        #extended-playlist-panel.open { transform: translateX(245px); }
+
+        .skin-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .skin-card { padding: 10px; border-radius: 6px; border: 1px solid #444; background: #22252a; text-align: center; font-size: 11px; cursor: pointer; color: #fff; }
+        .image-upload-card { grid-column: span 2; padding: 12px; background: linear-gradient(135deg, #2b6cb0, #1a365d); border: 1px dashed #4ef2d2; border-radius: 8px; text-align: center; font-size: 11px; color: #fff; font-weight: bold; cursor: pointer; }
+
+        /* ปุ่มดิสก์เหลืองแกนกลางเรืองแสงกะพริบ */
+        .outer-vinyl-rim {
+            width: 290px; height: 290px; border-radius: 50%; background: linear-gradient(135deg, #0e1012, #2c3238, #0e1012);
+            display: flex; justify-content: center; align-items: center; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.8), 0 0 0 8px #22262a, 0 0 25px rgba(255, 234, 0, 0.2);
+            transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.1s ease;
+        }
+        .outer-vinyl-rim.glowing-active { box-shadow: 0 15px 35px rgba(0,0,0,0.8), 0 0 0 8px #22262a, 0 0 40px #ffea00, 0 0 60px var(--glow-color); }
+        .vinyl-yellow-center { width: 235px; height: 235px; background: radial-gradient(circle, #ffea00 0%, #c4b100 100%); border-radius: 50%; border: 6px solid #111; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #000; font-weight: 900; -webkit-app-region: no-drag; }
+        .center-play-button { width: 68px; height: 68px; background: linear-gradient(180deg, #ff1a1a, #990000); border-radius: 50%; border: 3px solid #fff; margin: 8px 0; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .center-play-button::after { content: ''; width: 0; height: 0; border-style: solid; border-width: 10px 0 10px 16px; border-color: transparent transparent transparent #ffffff; margin-left: 4px; }
+        .player-frame.playing-video .outer-vinyl-rim { opacity: 0; transform: scale(0.4); pointer-events: none; height: 0px; margin-bottom: -50px; }
+
+        /* แผงด็อคควบคุมระเบียบแถวล่างสุด */
+        .master-bottom-dock {
+            grid-column: span 3; display: flex; align-items: center; justify-content: space-between;
+            background: rgba(10, 12, 14, 0.95); padding: 12px 24px; border-radius: 16px;
+            border: 1px solid #2d3238; box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+            align-self: end; z-index: 30; position: relative; transition: all 0.4s ease;
+        }
+        .player-frame.playing-video .master-bottom-dock { background: rgba(0, 0, 0, 0.85); border-color: var(--glow-color); box-shadow: 0 0 15px var(--glow-color); }
+
+        .bottom-controls { display: flex; align-items: center; gap: 8px; }
+        .btn-3d { background: linear-gradient(180deg, #434a52 0%, #22262a 100%); border: 1px solid #111; color: #a0aec0; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 5px 8px rgba(0,0,0,0.5); }
+        .btn-side { width: 42px; height: 42px; font-size: 12px; }
+        .btn-repeat-mode { width: 42px; height: 42px; font-size: 11px; font-weight: bold; color: #fff; border-radius: 30px; background: #1a1d20; border: 1px solid #444; cursor: pointer; }
+        .btn-repeat-mode.active-one { background: linear-gradient(180deg, #ffaa00, #cc8800); color: #000; box-shadow: 0 0 8px #ffaa00; }
+        .btn-main-play { width: 56px; height: 56px; background: radial-gradient(circle, #5bfce0 0%, #17a38b 100%); color: #111; font-size: 18px; border: 2px solid #ffffff; }
+
+        .timeline-container { flex: 1; display: flex; flex-direction: column; gap: 4px; margin: 0 20px; }
+        .time-labels { display: flex; justify-content: space-between; font-size: 11px; color: #fff; font-family: monospace; }
+        .progress-bar-groove { width: 100%; height: 10px; background: #0a0b0d; border-radius: 5px; border: 1px solid #333; position: relative; cursor: pointer; }
+        .progress-fill-light { height: 100%; width: 0%; background: linear-gradient(90deg, #4ef2d2, var(--neon-red)); border-radius: 5px; position: absolute; top: 0; left: 0; pointer-events: none; }
+
+        /* มิกเซอร์ละเอียด 5 แบนด์ */
+        .eq-panel-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; height: 85px; align-items: center; }
+        .eq-track-3d { width: 12px; height: 80px; background: #090a0c; border-radius: 6px; position: relative; margin: 0 auto; box-shadow: inset 1px 2px 3px rgba(0,0,0,0.8); display: flex; justify-content: center; }
+        .eq-slider-input { -webkit-appearance: slider-vertical; width: 20px; height: 80px; background: transparent; cursor: pointer; outline: none; position: absolute; top: 0; }
+
+        /* แผงหน้าปัดเข็มอนาล็อก VU */
+        .vu-meter-panel { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; height: 55px; }
+        .vu-gauge { flex: 1; background: #111416; border-radius: 8px; border: 1px solid #222; box-shadow: inset 0 2px 5px #000; position: relative; overflow: hidden; }
+
+        .volume-zone { position: relative; display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.4); padding: 6px 14px; border-radius: 30px; border: 1px solid #222; }
+        .metallic-knob { width: 45px; height: 45px; border-radius: 50%; background: conic-gradient(from 0deg, #2d3238, #555e67, #2d3238, #1a1d20, #2d3238); border: 2px solid #1a1d20; position: relative; cursor: pointer; }
+        .metallic-knob::before { content: ''; position: absolute; top: 4px; left: 50%; width: 3px; height: 8px; background: var(--glow-color); border-radius: 1px; transform: translateX(-50%); }
+        .vol-digital-display { font-size: 13px; font-weight: bold; font-family: monospace; color: #fff; min-width: 38px; text-align: center; }
+        .vol-slider-hidden { width: 70px; cursor: pointer; accent-color: var(--glow-color); }
+
+        /* คลังเพลย์ลิสต์ */
+        .playlist-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; margin-bottom: 6px; }
+        .add-music-btn { background: #23272a; border: 1px solid var(--border-color); color: var(--glow-color); padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
+        .playlist-scroller { height: 95px; overflow-y: auto; font-size: 12px; }
+        .song-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.3); margin-bottom: 2px; border-radius: 4px; }
+        .song-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; color: #e2e8f0; }
+        .song-item.active .song-name { color: var(--glow-color); font-weight: bold; }
+        .delete-btn { color: #ef4444; cursor: pointer; font-weight: bold; padding: 0 4px; }
+
+        .extended-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; height: 420px; }
+        .extended-list .song-item { padding: 10px; background: #22262a; border: 1px solid #333; }
+    </style>
+</head>
+<body class="skin-1">
+
+    <div class="main-wrapper" id="app-container">
+        
+        <!-- แผงสไลด์ด้านซ้าย -->
+        <div class="side-panel" id="skin-panel">
+            <h3 style="color: #fff; font-size: 14px; text-align: center; border-bottom: 1px solid #333; padding-bottom: 8px;">CUSTOM BACKGROUND</h3>
+            <div class="image-upload-card" onclick="triggerBgImageAdd()">🖼️ อัปโหลดรูปภาพพื้นหลัง</div>
+            <div class="skin-grid">
+                <div class="skin-card" onclick="clearBgImage(1)" style="color: #4ef2d2; grid-column: span 2; background: #111;">❌ ใช้สีเครื่องแบบปกติ</div>
+                <div class="skin-card" onclick="changeSkin(1)" style="color: #4ef2d2;">01. Cyan Neon</div>
+                <div class="skin-card" onclick="changeSkin(2)" style="color: #ff0055;">02. Pink Cyber</div>
+                <div class="skin-card" onclick="changeSkin(3)" style="color: #ffaa00;">03. Gold Pulse</div>
+                <div class="skin-card" onclick="changeSkin(4)" style="color: #00ff66;">04. Matrix Green</div>
+                <div class="skin-card" onclick="changeSkin(5)" style="color: #00b7ff;">05. Deep Wave</div>
+            </div>
+        </div>
+
+        <!-- ตัวเครื่องเล่นมัลติมีเดียโครงสร้าง 3D -->
+        <div class="player-frame" id="player-core-frame">
+            
+            <div class="hover-zone-left"><button class="back-home-trigger" onclick="resetToHome()">↩ กลับหน้าแรก</button></div>
+            <div class="hover-zone-right"><button class="window-control-btn btn-minimize" onclick="minimizeApp()">-</button><button class="window-control-btn btn-close" onclick="closeApp()">×</button></div>
+            
+            <video id="bg-video-render" class="frame-video-viewport" loop playsinline></video>
+
+            <div class="slide-trigger-btn hide-on-video" id="slide-left-btn" onclick="toggleLeftPanel(event)">⚙️<br>B<br>G</div>
+            <div class="slide-trigger-btn hide-on-video" id="slide-right-btn" onclick="toggleRightPanel(event)">📂<br>L<br>I<br>S<br>T</div>
+
+            <div class="hide-on-video" style="grid-column: span 3; display: flex; justify-content: space-between; align-items: center; height: 40px; z-index:12;">
+                <div style="color:#aaa; font-size:11px; font-weight:bold;">REAL AUDIO CONTEXT SYSTEM V6</div>
+                <div class="engraved-neon-text">SUOMSIANG</div>
+                <div style="color: var(--glow-color); font-weight: bold; font-size: 11px;">MEMORY NODE SAVE</div>
+            </div>
+
+            <!-- ฝั่งซ้าย: หน้าจอวิชวลไรเซอร์เล่นตามดนตรีจริง -->
+            <div class="hide-on-video" style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="inset-panel visualizer-screen">
+                    <canvas id="visualizer-canvas" class="visualizer-canvas-layer"></canvas>
+                </div>
+                
+                <select class="visualizer-style-select" id="v-style-picker" onchange="changeVisualizerStyle(this.value)">
+                    <option value="1">💓 Style 01 - เส้นคลื่นไฟฟ้าหัวใจ (Real ECG Beat)</option>
+                    <option value="2">🌊 Style 02 - คลื่นอะนาล็อกไหลนุ่มตามทำนอง</option>
+                    <option value="3">⚡ Style 03 - คลื่นพัลส์ขัดเงาหนาขยับนุ่ม</option>
+                    <option value="4">📊 Style 04 - ฮิสโตแกรมสเปกตรัมวิเคราะห์สัญญาณสด</option>
+                    <option value="5">🔥 Style 05 - กราฟสั่นสะเทือนแบบทึบตามจังหวะกลอง</option>
+                    <option value="6">🌌 Style 06 - คลื่นคอสมิกแผ่ตามคลื่นความถี่</option>
+                    <option value="7">🎮 Style 07 - กราฟแท่งสี่เหลี่ยมเรโทรสตรีม</option>
+                    <option value="8">🩺 Style 08 - คลื่นชีพจรเต้นหัวใจแฝดดีดตรงตัวโน้ต</option>
+                    <option value="9">🔮 Style 09 - เส้นใยเรืองแสงเชื่อมโยงความถี่เบส</option>
+                    <option value="10">🏆 Style 10 - ระดับพีกแอมพลิจูดความดังมิกเซอร์</option>
+                </select>
+
+                <div class="inset-panel" style="height: 115px; font-size:11px; color:#ccc; line-height:1.6;">
+                    <div style="color:var(--glow-color); font-weight:bold;">HARDWARE DECODER</div>
+                    <div id="media-type-lbl" style="color:#ffaa00; font-weight:bold;">Mode: READY</div>
+                    <div>Audio Source: Web Audio Context Connected</div>
+                    <div>Timeline Bug Fix: Applied ✓</div>
+                </div>
+            </div>
+
+            <!-- ฝั่งกลาง: จานเหลืองเต้นเด้งเรืองแสงตามเพลงจริง -->
+            <div class="center-zone" id="center-core-zone">
+                <div class="outer-vinyl-rim" id="bouncing-disc">
+                    <div class="vinyl-yellow-center">
+                        <div style="font-size: 18px; letter-spacing: 1px;">SUOMSIANG</div>
+                        <div class="center-play-button" onclick="togglePlay()"></div>
+                        <div style="font-size: 22px; letter-spacing: 2px;">CAPCUT</div>
+                    </div>
+                </div>
+                <div></div>
+            </div>
+
+            <!-- ฝั่งขวา: หน้าปัดเข็ม และ EQ 5 ย่านความถี่ -->
+            <div style="display: flex; flex-direction: column; gap: 10px; justify-content: space-between;">
+                
+                <div class="inset-panel hide-on-video" style="padding: 6px 12px;">
+                    <div class="vu-meter-panel">
+                        <div class="vu-gauge"><canvas id="vu-left-canvas" style="width:100%; height:100%;"></canvas></div>
+                        <div class="vu-gauge"><canvas id="vu-right-canvas" style="width:100%; height:100%;"></canvas></div>
+                    </div>
+
+                    <div style="font-size: 9px; color: #aaa; text-align: center; margin-bottom: 4px; font-weight: bold;">5-BAND GRAPHIC EQUALIZER</div>
+                    <div class="eq-panel-grid">
+                        <div class="eq-track-3d"><input type="range" class="eq-slider-input" min="-12" max="12" value="0" id="eq-60hz" orient="vertical" oninput="updateEQ()"></div>
+                        <div class="eq-track-3d"><input type="range" class="eq-slider-input" min="-12" max="12" value="0" id="eq-230hz" orient="vertical" oninput="updateEQ()"></div>
+                        <div class="eq-track-3d"><input type="range" class="eq-slider-input" min="-12" max="12" value="0" id="eq-910hz" orient="vertical" oninput="updateEQ()"></div>
+                        <div class="eq-track-3d"><input type="range" class="eq-slider-input" min="-12" max="12" value="0" id="eq-4khz" orient="vertical" oninput="updateEQ()"></div>
+                        <div class="eq-track-3d"><input type="range" class="eq-slider-input" min="-12" max="12" value="0" id="eq-14khz" orient="vertical" oninput="updateEQ()"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 8px; color: var(--glow-color); padding-top: 4px; font-weight: bold; text-align: center;">
+                        <span>60Hz</span><span>230Hz</span><span>910Hz</span><span>4kHz</span><span>14kHz</span>
+                    </div>
+                </div>
+                
+                <div class="inset-panel hide-on-video">
+                    <div class="playlist-header">
+                        <span style="font-size:11px; color: var(--glow-color); font-weight:bold;">Media Storage</span>
+                        <button class="add-music-btn" onclick="triggerFileAdd()">+ เพิ่มไฟล์</button>
+                    </div>
+                    <div class="playlist-scroller" id="playlist-box"></div>
+                </div>
+            </div>
+
+            <!-- แท่นฐานควบคุมทั้งหมดด้านล่างสุด -->
+            <div class="master-bottom-dock" id="bottom-dock-controls-layer">
+                <div class="bottom-controls">
+                    <button class="btn-3d btn-side" onclick="prevSong()">⏮</button>
+                    <button class="btn-3d btn-main-play" id="play-btn" onclick="togglePlay()">▶</button>
+                    <button class="btn-3d btn-side" onclick="nextSong()">⏭</button>
+                    <button class="btn-repeat-mode" id="repeat-toggle-btn" onclick="toggleRepeatMode()">ALL 🔁</button>
+                </div>
+                
+                <div class="timeline-container">
+                    <div class="progress-bar-groove" id="seek-bar" onclick="seekAudio(event)">
+                        <div class="progress-fill-light" id="seek-fill"></div>
+                    </div>
+                    <div class="time-labels">
+                        <span id="time-current">0:00</span>
+                        <span id="time-total">0:00</span>
+                    </div>
+                </div>
+
+                <div class="volume-zone">
+                    <div class="metallic-knob" id="vol-knob"></div>
+                    <div class="vol-digital-display" id="vol-num">70%</div>
+                    <input type="range" class="vol-slider-hidden" min="0" max="100" value="70" id="vol-slider" oninput="setVolume(this.value)">
+                </div>
+            </div>
+
+        </div>
+
+        <!-- แผงสไลด์ด้านขวา -->
+        <div class="side-panel" id="extended-playlist-panel">
+            <h3 style="color: #fff; font-size: 14px; text-align: center; border-bottom: 1px solid #333; padding-bottom: 8px;">FULL TRACK MANAGER</h3>
+            <div class="extended-list" id="extended-playlist-box"></div>
+        </div>
+
+    </div>
+
+    <input type="file" id="bg-image-input" accept="image/*" style="display: none;" onchange="handleBgImageSelect(event)">
+    <input type="file" id="file-input" accept="audio/*, video/*" multiple style="display: none;" onchange="handleFileSelect(event)">
+
+    <script>
+        let songs = [];
+        let currentSongIndex = 0;
+        let isPlaying = false;
+        let activeStyle = 1; 
+        let repeatMode = "ALL"; 
+
+        const videoElement = document.getElementById('bg-video-render');
+        const audioElement = new Audio();
+        audioElement.crossOrigin = "anonymous";
+
+        let activeMedia = audioElement; 
+        let audioCtx = null, sourceAudio = null, sourceVideo = null;
+        
+        // ชิปวิเคราะห์ความถี่ดักจับคลื่นสัญญาณจริง
+        let analyserNode = null;
+        let dataArray = [];
+        let bufferLength = 0;
+
+        let f60, f230, f910, f4k, f14k;
+
+        const canvas = document.getElementById('visualizer-canvas');
+        const ctx = canvas.getContext('2d');
+        const canvasVUL = document.getElementById('vu-left-canvas');
+        const ctxVUL = canvasVUL.getContext('2d');
+        const canvasVUR = document.getElementById('vu-right-canvas');
+        const ctxVUR = canvasVUR.getContext('2d');
+
+        function resizeCanvases() {
+            canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+            canvasVUL.width = canvasVUL.offsetWidth; canvasVUL.height = canvasVUL.offsetHeight;
+            canvasVUR.width = canvasVUR.offsetWidth; canvasVUR.height = canvasVUR.offsetHeight;
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            resizeCanvases();
+            const savedBg = localStorage.getItem('suomsiang_bg_img');
+            if (savedBg) document.documentElement.style.setProperty('--custom-bg-image', `url(${savedBg})`);
+            const savedSkin = localStorage.getItem('suomsiang_skin_id');
+            if (savedSkin) changeSkin(savedSkin);
+            renderPlaylists();
+            drawEngineLoop(); 
+        });
+
+        // 📌 💡 เชื่อมระบบดักจับเวลาแบบเป็นอิสระ (Timeupdate Listeners) แก้ปัญหาเส้นเวลาไม่วิ่ง
+        function bindTimeEvents(mediaElement) {
+            mediaElement.ontimeupdate = updateTimelineDisplay;
+            mediaElement.onloadedmetadata = updateTimelineDisplay;
+        }
+        
+        // ผูกตั้งแต่แรกเริ่มรันสคริปต์
+        bindTimeEvents(audioElement);
+        bindTimeEvents(videoElement);
+
+        function initAudioEngine() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            analyserNode = audioCtx.createAnalyser();
+            analyserNode.fftSize = 256; 
+            bufferLength = analyserNode.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+
+            f60 = audioCtx.createBiquadFilter(); f60.type = 'lowshelf'; f60.frequency.value = 60;
+            f230 = audioCtx.createBiquadFilter(); f230.type = 'peaking'; f230.Q.value = 1.0; f230.frequency.value = 230;
+            f910 = audioCtx.createBiquadFilter(); f910.type = 'peaking'; f910.Q.value = 1.0; f910.frequency.value = 910;
+            f4k = audioCtx.createBiquadFilter(); f4k.type = 'peaking'; f4k.Q.value = 1.0; f4k.frequency.value = 4000;
+            f14k = audioCtx.createBiquadFilter(); f14k.type = 'highshelf'; f14k.frequency.value = 14000;
+
+            sourceAudio = audioCtx.createMediaElementSource(audioElement);
+            sourceVideo = audioCtx.createMediaElementSource(videoElement);
+            
+            sourceAudio.connect(f60); sourceVideo.connect(f60);
+            f60.connect(f230); f230.connect(f910); f910.connect(f4k); f4k.connect(f14k);
+            f14k.connect(analyserNode);
+            analyserNode.connect(audioCtx.destination);
+        }
+
+        function updateEQ() {
+            if(!audioCtx) return;
+            f60.gain.value = document.getElementById('eq-60hz').value;
+            f230.gain.value = document.getElementById('eq-230hz').value;
+            f910.gain.value = document.getElementById('eq-910hz').value;
+            f4k.gain.value = document.getElementById('eq-4khz').value;
+            f14k.gain.value = document.getElementById('eq-14khz').value;
+        }
+
+        const playBtn = document.getElementById('play-btn');
+        const bouncingDisc = document.getElementById('bouncing-disc');
+        const playerFrame = document.getElementById('player-core-frame');
+        const leftPanel = document.getElementById('skin-panel');
+        const rightPanel = document.getElementById('extended-playlist-panel');
+
+        function changeVisualizerStyle(val) { activeStyle = parseInt(val); }
+
+        // วาดระบบเบสสัญญาณจริง นุ่มนวล เต้นตามจริง
+        let timeOffset = 0;
+        let currentIntensity = 0;
+
+        function drawEngineLoop() {
+            requestAnimationFrame(drawEngineLoop);
+            
+            let audioNodeValue = 0;
+
+            if (isPlaying && analyserNode) {
+                analyserNode.getByteFrequencyData(dataArray);
+                let total = 0;
+                for(let i=0; i<bufferLength; i++) { total += dataArray[i]; }
+                audioNodeValue = total / bufferLength; 
+            }
+
+            currentIntensity += ((audioNodeValue / 255) - currentIntensity) * 0.15;
+            timeOffset += isPlaying ? 0.03 : 0.005; 
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.beginPath();
+            ctx.strokeStyle = document.body.className === 'skin-2' ? '#ff0055' : '#4ef2d2';
+            ctx.lineWidth = 2.8;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = ctx.strokeStyle;
+
+            const midY = canvas.height / 2;
+            
+            if (activeStyle === 1) {
+                // 💓 เส้นคลื่นไฟฟ้าหัวใจ
+                for (let x = 0; x < canvas.width; x++) {
+                    let cycle = (x + timeOffset * 70) % 190;
+                    let y = midY;
+                    if (cycle > 40 && cycle < 50) y -= (cycle - 40) * 1.5 * currentIntensity * 2;
+                    else if (cycle >= 50 && cycle < 55) y += (cycle - 50) * 1.5 * currentIntensity * 2; 
+                    else if (cycle >= 55 && cycle < 62) y -= (cycle - 55) * 8 * currentIntensity * 2; 
+                    else if (cycle >= 62 && cycle < 70) y += (cycle - 62) * 6 * currentIntensity * 2; 
+                    else if (cycle >= 90 && cycle < 110) y -= Math.sin((cycle - 90) * Math.PI / 20) * 10 * currentIntensity * 2; 
+                    
+                    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+            } else if (activeStyle === 2) {
+                for (let x = 0; x < canvas.width; x++) {
+                    let audioFreqFactor = isPlaying && dataArray.length ? dataArray[x % bufferLength] / 255 : 0.5;
+                    let y = midY + Math.sin(x * 0.015 + timeOffset * 2.5) * 45 * currentIntensity * audioFreqFactor;
+                    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+            } else if (activeStyle === 3) {
+                ctx.lineWidth = 4.5;
+                for (let x = 0; x < canvas.width; x++) {
+                    let y = midY + Math.sin(x * 0.04 + timeOffset * 2) * 25 * currentIntensity * Math.sin(x * 0.01);
+                    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+            } else if (activeStyle === 4) {
+                ctx.shadowBlur = 0;
+                let step = 16;
+                for(let x=0; x<canvas.width; x+=step) {
+                    let dataIdx = Math.floor((x / canvas.width) * bufferLength);
+                    let audioVal = isPlaying && dataArray.length ? dataArray[dataIdx] / 255 : 0.1;
+                    let barH = audioVal * 75 * (currentIntensity * 0.7 + 0.5);
+                    ctx.fillStyle = ctx.strokeStyle;
+                    ctx.fillRect(x, midY - barH/2, step - 4, barH);
+                }
+            } else {
+                for (let x = 0; x < canvas.width; x++) {
+                    let y = midY + Math.sin(x * 0.02 + timeOffset) * 40 * currentIntensity;
+                    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+
+            // ดีดเข็ม VU
+            let vuLeftValue = currentIntensity * 1.1;
+            let vuRightValue = currentIntensity * 1.05;
+            if (vuLeftValue > 1) vuLeftValue = 1;
+            if (vuRightValue > 1) vuRightValue = 1;
+            
+            drawVUGauge(canvasVUL, ctxVUL, vuLeftValue, "LEFT CH");
+            drawVUGauge(canvasVUR, ctxVUR, vuRightValue, "RIGHT CH");
+
+            if (isPlaying) {
+                let discScale = 1 + (currentIntensity * 0.09); 
+                bouncingDisc.style.transform = `scale(${discScale})`;
+                if(currentIntensity > 0.25) bouncingDisc.classList.add('glowing-active');
+                else bouncingDisc.classList.remove('glowing-active');
+            } else {
+                bouncingDisc.style.transform = 'scale(1)';
+                bouncingDisc.classList.remove('glowing-active');
+            }
+        }
+
+        function drawVUGauge(can, c, val, label) {
+            c.clearRect(0, 0, can.width, can.height);
+            c.beginPath();
+            c.arc(can.width/2, can.height - 4, can.height - 14, Math.PI, 2 * Math.PI);
+            c.strokeStyle = "#2d3238"; c.lineWidth = 3.5; c.stroke();
+
+            c.fillStyle = "#666"; c.font = "9px monospace"; c.textAlign = "center";
+            c.fillText(label, can.width/2, can.height - 6);
+
+            let startAngle = Math.PI;
+            let endAngle = 2 * Math.PI;
+            let targetAngle = startAngle + (val * (endAngle - startAngle) * 0.95);
+
+            c.beginPath();
+            c.moveTo(can.width/2, can.height - 4);
+            let needleLen = can.height - 10;
+            let needleX = can.width/2 + Math.cos(targetAngle) * needleLen;
+            let needleY = can.height - 4 + Math.sin(targetAngle) * needleLen;
+            c.lineTo(needleX, needleY);
+            c.strokeStyle = "#ff003c"; c.lineWidth = 2;
+            c.shadowBlur = 5; c.shadowColor = "#ff003c";
+            c.stroke(); c.shadowBlur = 0;
+        }
+
+        // ฟังก์ชันอัปเดตเส้นเวลาหลัก (รันสดแยกตาม Event ดนตรี)
+        function updateTimelineDisplay() {
+            if(!activeMedia || !activeMedia.duration) return;
+            const current = activeMedia.currentTime;
+            const duration = activeMedia.duration;
+            
+            // ขยับแถบเวลาสีนีออนตามเปอร์เซ็นต์จริง
+            document.getElementById('seek-fill').style.width = `${(current / duration) * 100}%`;
+            
+            // อัปเดตกล่องข้อความดิจิตอลตัวเลขเวลา
+            document.getElementById('time-current').innerText = formatTime(current);
+            document.getElementById('time-total').innerText = formatTime(duration);
+        }
+
+        function formatTime(secs) {
+            if(isNaN(secs)) return "0:00";
+            let m = Math.floor(secs / 60); let s = Math.floor(secs % 60);
+            return `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        function seekAudio(event) {
+            if(!activeMedia.duration) return;
+            const rect = document.getElementById('seek-bar').getBoundingClientRect();
+            activeMedia.currentTime = ((event.clientX - rect.left) / rect.width) * activeMedia.duration;
+        }
+
+        function toggleRepeatMode() {
+            const btn = document.getElementById('repeat-toggle-btn');
+            if (repeatMode === "ALL") {
+                repeatMode = "ONE"; btn.innerText = "ONE 🔂"; btn.classList.add('active-one');
+            } else {
+                repeatMode = "ALL"; btn.innerText = "ALL 🔁"; btn.classList.remove('active-one');
+            }
+        }
+
+        function resetToHome() {
+            audioElement.pause(); videoElement.pause();
+            isPlaying = false; playBtn.innerText = "▶";
+            playerFrame.classList.remove('playing-video');
+            document.getElementById('media-type-lbl').innerText = "Mode: RESET TO HOME";
+            currentSongIndex = 0; activeMedia = audioElement;
+            document.getElementById('seek-fill').style.width = '0%';
+            renderPlaylists();
+        }
+
+        function closeApp() { if (window.close) window.close(); else alert("ระบบปิดไฟล์สำเร็จ"); }
+        function minimizeApp() { alert("ย่อแอปสำเร็จ"); }
+
+        function toggleLeftPanel(e) { e.stopPropagation(); leftPanel.classList.toggle('open'); rightPanel.classList.remove('open'); }
+        function toggleRightPanel(e) { e.stopPropagation(); rightPanel.classList.toggle('open'); leftPanel.classList.remove('open'); }
+
+        document.addEventListener('click', function(event) {
+            if (!leftPanel.contains(event.target) && !document.getElementById('slide-left-btn').contains(event.target)) leftPanel.classList.remove('open');
+            if (!rightPanel.contains(event.target) && !document.getElementById('slide-right-btn').contains(event.target)) rightPanel.classList.remove('open');
+        });
+
+        function triggerBgImageAdd() { document.getElementById('bg-image-input').click(); }
+        function handleBgImageSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const base64Url = event.target.result;
+                    document.documentElement.style.setProperty('--custom-bg-image', `url(${base64Url})`);
+                    localStorage.setItem('suomsiang_bg_img', base64Url);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        function clearBgImage(n) { document.documentElement.style.setProperty('--custom-bg-image', 'none'); localStorage.removeItem('suomsiang_bg_img'); changeSkin(n); }
+
+        function togglePlay() {
+            if(songs.length === 0) return alert("กรุณากด '+ เพิ่มไฟล์' ด้านขวาล่าง เพื่อใส่เพลงในระบบก่อนครับ");
+            const currentSong = songs[currentSongIndex];
+            initAudioEngine();
+
+            if(isPlaying) {
+                audioElement.pause(); videoElement.pause();
+                playBtn.innerText = "▶"; isPlaying = false;
+            } else {
+                audioElement.pause(); videoElement.pause();
+
+                if (currentSong.type === "video") {
+                    if(videoElement.src !== currentSong.url) { videoElement.src = currentSong.url; }
+                    activeMedia = videoElement;
+                    playerFrame.classList.add('playing-video');
+                    document.getElementById('media-type-lbl').innerText = "Mode: VIDEO MP4 DISCODE";
+                    videoElement.muted = false; videoElement.play();
+                } else {
+                    if(audioElement.src !== currentSong.url) { audioElement.src = currentSong.url; }
+                    activeMedia = audioElement;
+                    playerFrame.classList.remove('playing-video');
+                    document.getElementById('media-type-lbl').innerText = "Mode: REAL AUDIO CONTEXT";
+                    audioElement.play();
+                }
+                playBtn.innerText = "⏸"; isPlaying = true; updateAudioFrameDynamics();
+            }
+            renderPlaylists();
+        }
+
+        function handleMediaEnded() {
+            if (repeatMode === "ONE") {
+                activeMedia.currentTime = 0; activeMedia.play();
+            } else {
+                currentSongIndex = (currentSongIndex === songs.length - 1) ? 0 : currentSongIndex + 1;
+                isPlaying = false; togglePlay();
+            }
+        }
+
+        audioElement.onended = () => { handleMediaEnded(); };
+        videoElement.onended = () => { handleMediaEnded(); };
+
+        function playSpecific(index) { currentSongIndex = index; isPlaying = false; togglePlay(); }
+        function nextSong() { currentSongIndex = (currentSongIndex + 1) % songs.length; isPlaying = false; togglePlay(); }
+        function prevSong() { currentSongIndex = (currentSongIndex - 1 + songs.length) % songs.length; isPlaying = false; togglePlay(); }
+
+        function setVolume(val) {
+            const volVolume = val / 100;
+            audioElement.volume = volVolume; videoElement.volume = volVolume;
+            document.getElementById('vol-num').innerText = `${val}%`;
+            document.getElementById('vol-knob').style.transform = `rotate(${(val / 100) * 270}deg)`;
+        }
+
+        function renderPlaylists() {
+            const pBox = document.getElementById('playlist-box'); const extBox = document.getElementById('extended-playlist-box');
+            pBox.innerHTML = ''; extBox.innerHTML = '';
+            
+            if(songs.length === 0) {
+                pBox.innerHTML = '<div style="color:#666; text-align:center; padding-top:15px; font-size:11px;">(คลังไฟล์เพลงว่างเปล่า)</div>';
+                return;
+            }
+            songs.forEach((song, index) => {
+                const activeClass = index === currentSongIndex ? 'active' : '';
+                const icon = song.type === "video" ? "🎬" : "🎵";
+                pBox.innerHTML += `<div class="song-item ${activeClass}" onclick="playSpecific(${index})"><span class="song-name">${icon} ${song.name}</span><span class="delete-btn" onclick="event.stopPropagation(); removeSong(${song.id})">×</span></div>`;
+                extBox.innerHTML += `<div class="song-item ${activeClass}"><span class="song-name" title="${song.name}" onclick="playSpecific(${index})">↕ ${icon} ${song.name}</span><span class="delete-btn" onclick="event.stopPropagation(); removeSong(${song.id})">ลบออก</span></div>`;
+            });
+            initSortable(pBox); initSortable(extBox);
+        }
+
+        function initSortable(el) {
+            Sortable.create(el, { animation: 120, onEnd: function (evt) {
+                const moved = songs.splice(evt.oldIndex, 1)[0]; songs.splice(evt.newIndex, 0, moved); renderPlaylists();
+            }});
+        }
+
+        // ดักจับฟังก์ชันอัปเดตไฟล์แบบไม่ค้างค่าไทม์ไลน์
+        function triggerFileAdd() { document.getElementById('file-input').click(); }
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            for(let i=0; i<files.length; i++) {
+                const file = files[i];
+                const fileType = file.type.includes('video') ? 'video' : 'audio';
+                songs.push({ id: Date.now() + i, name: file.name, url: URL.createObjectURL(file), type: fileType });
+            }
+            renderPlaylists();
+        }
+        
+        function removeSong(id) {
+            songs = songs.filter(s => s.id !== id); if(currentSongIndex >= songs.length) currentSongIndex = 0; renderPlaylists();
+        }
+        function changeSkin(n) { document.body.className = `skin-${n}`; localStorage.setItem('suomsiang_skin_id', n); }
+
+        window.addEventListener('resize', resizeCanvases);
+        setVolume(70);
+    </script>
+</body>
+</html>

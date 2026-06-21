@@ -1,0 +1,13 @@
+{
+  "name": "suomsiang-capcut",
+  "version": "1.0.0",
+  "main": "index.html",
+  "window": {
+    "title": "SUOMSIANG CAPCUT",
+    "width": 1040,
+    "height": 640,
+    "frame": false,
+    "resizable": false,
+    "position": "center"
+  }
+}
