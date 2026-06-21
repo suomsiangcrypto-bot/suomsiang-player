@@ -16,16 +16,15 @@ jobs:
     - name: Setup Node.js Environment
       uses: actions/setup-node@v4
       with:
-        node-version: 16 # ปรับเวอร์ชัน Node เพื่อรองรับ nw-builder ตัวเสถียร
+        node-version: 18
 
-    - name: Install NW-Builder tool
-      run: npm install -g nw-builder@3.15.0 # ระบุเวอร์ชันที่เสถียรสำหรับการแพ็ค Single HTML
+    - name: Install nw-packager tool
+      run: npm install -g nw-packager
 
     - name: Compile and Package to EXE
       run: |
-        mkdir build_output
-        # ทำการส่งรหัสคอมไพล์โดยระบุตำแหน่งโฟลเดอร์ปัจจุบันอย่างชัดเจน
-        nwbuild --platforms win64 --flavor normal --output ./build_output/ .
+        # ทำการ build หน้าเว็บและรวมโครงสร้างอัตโนมัติ
+        nw-packager --build --platforms win64 --output ./build_output/ .
         powershell Compress-Archive -Path ./build_output/* -DestinationPath ./suomsiang-player-win64.zip
 
     - name: Upload Final EXE Package to GitHub
