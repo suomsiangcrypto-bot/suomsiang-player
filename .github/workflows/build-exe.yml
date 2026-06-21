@@ -21,19 +21,38 @@ jobs:
     - name: Build Setup Configuration Files
       shell: bash
       run: |
-        # 🚀 สร้างไฟล์ package.json แบบคลีน
+        # สร้าง package.json ที่ระบุเวอร์ชันและ author ครบถ้วนตามมาตรฐานสากล
         cat << 'EOF' > package.json
         {
           "name": "suomsiang-capcut",
           "version": "1.0.0",
+          "author": "SUOMSIANG",
+          "description": "Crypto Music Player",
           "main": "main.js",
+          "scripts": {
+            "dist": "electron-builder --win --x64"
+          },
           "dependencies": {
-            "electron-packager": "^17.1.2"
+            "electron": "^25.0.0"
+          },
+          "devDependencies": {
+            "electron-builder": "^24.0.0"
+          },
+          "build": {
+            "appId": "com.suomsiang.player",
+            "win": {
+              "target": "portable"
+            },
+            "files": [
+              "index.html",
+              "main.js",
+              "favicon.ico"
+            ]
           }
         }
         EOF
 
-        # 🚀 สร้างไฟล์ main.js และเปิดโหมด Frameless ซ่อนขอบหน้าต่างขาวทิ้งไป 100%
+        # สร้างไฟล์ main.js เปิดโหมด Frameless ซ่อนขอบหน้าต่างขาว 100%
         cat << 'EOF' > main.js
         const { app, BrowserWindow } = require('electron');
         const path = require('path');
@@ -42,9 +61,9 @@ jobs:
           const win = new BrowserWindow({
             width: 1040,
             height: 640,
-            frame: false,       // ซ่อนขอบขาวพลาสติกของ Windows ทิ้งไป
-            resizable: false,   // ล็อกขนาดเครื่องเล่นไม่ให้เบี้ยว
-            transparent: true,  // เปิดโหมดโปร่งใสรอบเครื่องเล่น
+            frame: false,       // ลบขอบหน้าต่างขาวพลาสติกทิ้งไป
+            resizable: false,   // ล็อกขนาดไม่ให้เบี้ยว
+            transparent: true,  // เปิดความโปร่งใสขอบมน
             webPreferences: {
               nodeIntegration: false,
               contextIsolation: true
@@ -66,9 +85,12 @@ jobs:
 
     - name: Compile and Build Package To EXE
       run: |
-        # สั่งแพ็คไฟล์เป็นแอปพลิเคชัน Windows 64-bit โครงสร้างสมบูรณ์แบบ
-        npx electron-packager . SUOMSIANG-CAPCUT --platform=win32 --arch=x64 --overwrite --out=./dist/
-        powershell Compress-Archive -Path ./dist/SUOMSIANG-CAPCUT-win32-x64/* -DestinationPath ./suomsiang-player-win64.zip
+        # รันเครื่องมือแพ็คสำเร็จรูปสากล
+        npm run dist
+        # ย้ายไฟล์คัดแยกพร้อมบีบอัดเป็น ZIP
+        mkdir dist_zip
+        cp dist/*.exe dist_zip/
+        powershell Compress-Archive -Path ./dist_zip/* -DestinationPath ./suomsiang-player-win64.zip
 
     - name: Upload Final EXE Package to GitHub
       uses: actions/upload-artifact@v4
