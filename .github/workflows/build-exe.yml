@@ -18,13 +18,19 @@ jobs:
       with:
         node-version: 18
 
-    - name: Install nw-packager tool
-      run: npm install -g nw-packager
+    - name: Create Electron Main Script
+      run: |
+        # สร้างไฟล์คุมหน้าต่างเบื้องต้นสำหรับ Electron
+        echo "const { app, BrowserWindow } = require('electron');" > main.js
+        echo "app.whenReady().then(() => {" >> main.js
+        echo "  const win = new BrowserWindow({ width: 1040, height: 640, frame: false, resizable: false, webPreferences: { nodeIntegration: true } });" >> main.js
+        echo "  win.loadFile('index.html');" >> main.js
+        echo "});" >> main.js
 
     - name: Compile and Package to EXE
       run: |
-        # ทำการ build หน้าเว็บและรวมโครงสร้างอัตโนมัติ
-        nw-packager --build --platforms win64 --output ./build_output/ .
+        # ใช้ npx เรียกใช้เครื่องมือของ electron ได้โดยตรงแบบไม่ติดปัญหา Path
+        npx electron-packager . suomsiang-player --platform=win32 --arch=x64 --overwrite --out=./build_output
         powershell Compress-Archive -Path ./build_output/* -DestinationPath ./suomsiang-player-win64.zip
 
     - name: Upload Final EXE Package to GitHub
