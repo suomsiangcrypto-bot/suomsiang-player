@@ -15,23 +15,22 @@ jobs:
 
     - name: Download NW.js Runtime
       run: |
-        # ดาวน์โหลดตัวรันไทม์ Windows 64-bit โดยตรงจากสากล
         curl -L https://dl.nwjs.io/v0.82.0/nwjs-v0.82.0-win-x64.zip -o nwjs.zip
         powershell Expand-Archive -Path nwjs.zip -DestinationPath .
         mv nwjs-v0.82.0-win-x64 nwjs_runtime
 
     - name: Create Executable Package
       run: |
-        # บีบอัดโค้ดของโปรแกรมให้เป็นแพ็คเกจตัวแอป
-        powershell Compress-Archive -Path index.html, package.json, favicon.ico -DestinationPath ./app.nw
+        # เปลี่ยนวิธีแพ็คไฟล์ โดยการ zip เฉพาะเนื้อหาด้านใน ไม่เอาตัวโฟลเดอร์หลักไปซ้อน
+        powershell "Get-ChildItem -Path index.html, package.json, favicon.ico | Compress-Archive -DestinationPath ./app.nw"
         
-        # ผสมผสานตัวแอปเข้ากับไฟล์ระบบของ Windows เพื่อสร้างเป็นไฟล์ .exe ตัวเดียวเดี่ยวๆ
+        # ผสมผสานแอปเข้ากับตัวรันเพื่อสร้างไฟล์แอปเดี่ยว
         cmd /c "copy /b nwjs_runtime\nw.exe + app.nw nwjs_runtime\SUOMSIANG-CAPCUT.exe"
         
-        # ลบไฟล์ตัวอย่างที่ไม่ได้ใช้งานทิ้งไปเพื่อลดขนาดและไม่ให้รกตา
+        # ลบไฟล์ตัวดั้งเดิมออกเพื่อไม่ให้สับสน
         rm nwjs_runtime/nw.exe
         
-        # จัดเตรียมโฟลเดอร์สำหรับบีบอัดส่งออก
+        # คัดแยกเฉพาะไฟล์ที่จำเป็นลงโฟลเดอร์ ZIP ส่งออก
         mkdir dist_zip
         mv nwjs_runtime/* dist_zip/
         powershell Compress-Archive -Path ./dist_zip/* -DestinationPath ./suomsiang-player-win64.zip
