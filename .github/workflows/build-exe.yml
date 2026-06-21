@@ -18,13 +18,62 @@ jobs:
       with:
         node-version: 18
 
-    - name: Compile and Package to EXE
+    - name: Initialize App Package Configuration
       run: |
-        # เรียกใช้เครื่องมือสากลผ่าน npx เพื่อสร้างหน้าต่างแบบแอปพลิเคชัน Frameless
-        npx nativefier --name "SUOMSIANG-CAPCUT" --width 1040 --height 640 --disable-context-menu --internal-urls ".*" . ./build_output
-        
-        # ค้นหาและบีบอัดโฟลเดอร์ผลลัพธ์ที่สร้างได้เป็นไฟล์ ZIP
-        powershell Compress-Archive -Path ./build_output/* -DestinationPath ./suomsiang-player-win64.zip
+        # สร้างโครงสร้างไฟล์ตรรกะสำหรับการเชื่อมต่อแอปและซ่อนกรอบขาว Windows
+        node -e "
+        const fs = require('fs');
+        const pkg = {
+          name: 'suomsiang-capcut',
+          version: '1.0.0',
+          main: 'main.js',
+          dependencies: { 'electron-packager': '^17.1.2' }
+        };
+        fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+        "
+
+    - name: Create Electron Main Process Script
+      run: |
+        # เขียนสคริปต์สั่งเปิดหน้าต่างตัวเครื่องเล่นแบบ Frameless ซ่อนขอบหน้าต่างขาวทิ้งไป
+        node -e "
+        const fs = require('fs');
+        const script = \`
+        const { app, BrowserWindow } = require('electron');
+        const path = require('path');
+
+        function createPlayerWindow() {
+          const win = new BrowserWindow({
+            width: 1040,
+            height: 640,
+            frame: false,       // 🚀 สั่งซ่อนกรอบหน้าต่างพลาสติกสีขาวของ Windows ทิ้งไป 100%
+            resizable: false,   // ล็อกขนาดเครื่องเล่นไม่ให้เบี้ยว
+            transparent: true,  // เปิดโหมดโปร่งใสรอบเครื่องเล่น
+            webPreferences: {
+              nodeIntegration: false,
+              contextIsolation: true
+            }
+          });
+
+          win.loadFile('index.html');
+        }
+
+        app.whenReady().then(createPlayerWindow);
+
+        app.on('window-all-closed', () => {
+          if (process.platform !== 'darwin') app.quit();
+        });
+        \`;
+        fs.writeFileSync('main.js', script.trim());
+        "
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Compile and Build Package To EXE
+      run: |
+        # สั่งแพ็คไฟล์เป็นแอปพลิเคชัน Windows 64-bit และล็อกขนาดเรียบร้อย
+        npx electron-packager . SUOMSIANG-CAPCUT --platform=win32 --arch=x64 --overwrite --out=./dist/
+        powershell Compress-Archive -Path ./dist/SUOMSIANG-CAPCUT-win32-x64/* -DestinationPath ./suomsiang-player-win64.zip
 
     - name: Upload Final EXE Package to GitHub
       uses: actions/upload-artifact@v4
