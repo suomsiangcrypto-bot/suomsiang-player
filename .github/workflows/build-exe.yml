@@ -1,0 +1,33 @@
+name: Build SUOMSIANG EXE
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js Environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+
+    - name: Install NW-Builder tool
+      run: npm install -g nw-builder
+
+    - name: Compile and Package to EXE
+      run: |
+        nwbuild --platforms win64 --flavor normal --output ./dist/ .
+        powershell Compress-Archive -Path ./dist/suomsiang-capcut/win64/* -DestinationPath ./suomsiang-player-win64.zip
+
+    - name: Upload Final EXE Package to GitHub
+      uses: actions/upload-artifact@v4
+      with:
+        name: SUOMSIANG-PLAYER-EXE
+        path: suomsiang-player-win64.zip
